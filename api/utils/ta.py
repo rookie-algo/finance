@@ -58,6 +58,9 @@ def get_news_for_symbol(ticker):
     news_df['Sentiment'] = news_df.apply(lambda x: analyzer.polarity_scores(x.summary)["compound"], axis=1)
     return news_df
 
+# === 抓取最新评级 ===
+def get_upgrade_downgrate(ticker):
+    return pd.DataFrame(ticker.recommendations.head().to_dict(orient='records'))[["strongBuy", "buy", "hold", "sell", "strongSell"]].to_dict(orient="records")
 
 # === 主分析函数 ===
 def full_tech_analysis(symbol: str) -> list:

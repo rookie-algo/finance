@@ -1,8 +1,10 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Security, FastAPI, HTTPException, Query
 from typing import List, Dict, Any
+import yfinance as yf
 
 from .utils.db import get_finance_transactions
-from .utils.ta import calculate_position, get_exchange_rate, full_tech_analysis
+from .utils.ta import calculate_position, get_exchange_rate, full_tech_analysis, get_upgrade_downgrate
+from .utils.auth import validate_api_key
 
 app = FastAPI()
 
@@ -13,8 +15,9 @@ def read_root() -> Dict[str, str]:
     return {"message": "Hello from FastAPI on Google App Engine!"}
 
 
-@app.get("/holdings", summary="Get current holdings")
-def get_holdings() -> List[Dict[str, int]]:
+# === 获取持仓 ===
+@app.get("/holdings", summary="Get current holdings", tags=["Holdings"])
+def get_holdings(api_key=Security(validate_api_key)) -> List[Dict[str, int]]:
     """Aggregates current holdings per symbol based on transactions."""
     transactions_df = get_finance_transactions()
     results = []
@@ -34,8 +37,54 @@ def get_holdings() -> List[Dict[str, int]]:
     return results
 
 
-@app.get("/ta/", summary="Run technical analysis on a symbol")
-def analyze_symbol(symbol: str = Query(..., description="Ticker symbol"),
+# === 获取购买记录 ===
+@app.get("/transactions", summary="Get all transaction records", tags=["Holdings"])
+def get_transactions(api_key=Security(validate_api_key)) -> List[Dict[str, Any]]:
+    """
+    Retrieve all raw finance transactions as a list of dictionaries.
+
+    Returns:
+        List of transactions, where each transaction is a row from the DataFrame.
+    """
+    df = get_finance_transactions()
+    return df.to_dict(orient="records")
+
+
+# === 获取股票history Data ===
+@app.get("/stock/", summary="Get stock price history and analyst rating changes", tags=["Stock"])
+def get_stock(
+    symbol: str = Query(..., description="Stock ticker symbol (e.g., AAPL, TSLA)")
+) -> Dict[str, Any]:
+    """
+    Fetches 1-month daily historical stock prices and upgrade/downgrade data for a given ticker symbol.
+    
+    Args:
+        symbol (str): The stock ticker symbol.
+        
+    Returns:
+        Dict[str, Any]: A dictionary containing analyst upgrade/downgrade info and historical price data.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period="1mo", interval="1d")
+        if df.empty:
+            raise ValueError("No historical data found for the symbol.")
+
+        return {
+            "symbol": symbol.upper(),
+            "history": df.reset_index().to_dict(orient="records"),
+            "upgrades_and_downgrades": get_upgrade_downgrate(ticker)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch stock data: {str(e)}")
+
+
+
+# === 单股技术分析 ===
+@app.get("/ta/", summary="Run technical analysis on a symbol", tags=["Stock"])
+def analyze_symbol(api_key=Security(validate_api_key),
+                   symbol: str = Query(..., description="Ticker symbol"),
                    analyse: bool = Query(False, description="Include holding analysis")) -> Dict[str, Any]:
     """
     Returns technical analysis and optional holding metrics for a given symbol.
