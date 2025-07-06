@@ -3,7 +3,8 @@ from typing import Dict, Any
 
 import yfinance as yf
 
-from ..utils.ta import calculate_position, get_exchange_rate, full_tech_analysis, get_upgrade_downgrate
+from ..utils.ai import generate_prompt_from_api_response, request_to_groq
+from ..utils.ta import calculate_position, get_exchange_rate, full_tech_analysis, generate_analysis_report, get_upgrade_downgrate
 from ..utils.db import get_finance_transactions
 from ..utils.auth import validate_api_key
 
@@ -46,26 +47,28 @@ def get_stock(
 @router.get("/tech-analysis/", summary="Run technical analysis on a symbol", tags=["Stock"])
 def analyze_symbol(api_key=Security(validate_api_key),
                    symbol: str = Query(..., description="Ticker symbol"),
-                   analyse: bool = Query(False, description="Include holding analysis")) -> Dict[str, Any]:
+                   analyse: bool = Query(False, description="Include holding analysis"),
+                   ai: bool = Query(False, description="Include holding analysis")) -> Dict[str, Any]:
     """
     Returns technical analysis and optional holding metrics for a given symbol.
     """
-    analysis, df, news_df = full_tech_analysis(symbol=symbol)
+    tech_analysis_indicators, df, news_df = full_tech_analysis(symbol=symbol)
 
     if df.empty:
-        raise HTTPException(status_code=400, detail=analysis)
+        raise HTTPException(status_code=400, detail=tech_analysis_indicators)
 
     close_today = df.iloc[-1]["Close"]
     close_prev = df.iloc[-2]["Close"]
     change_pct = (close_today - close_prev) / close_prev * 100
     exchange_rate = get_exchange_rate()
-
+    advices = generate_analysis_report(tech_analysis_indicators)
     response = {
         "Symbol": symbol.upper(),
         "Close": float(close_today),
         "PrevClose": float(close_prev),
         "ChangePct": round(change_pct, 2),
-        "Recommandation": analysis,
+        "advices": advices,
+        "tech_analysis_indicators": tech_analysis_indicators,
         "News": news_df.to_dict(orient='records'),
     }
 
@@ -92,5 +95,11 @@ def analyze_symbol(api_key=Security(validate_api_key),
                 }
 
             response["Holdings"] = holdings
+
+    if ai:
+        prompt = generate_prompt_from_api_response(response)
+        answer = request_to_groq(prompt)
+        response["Question"] = prompt
+        response["AI recommandation"] = answer
 
     return response
