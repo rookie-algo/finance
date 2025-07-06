@@ -148,9 +148,12 @@ Inside the EC2 instance:
 
 ```bash
 cd your-fastapi-app
+docker compose down
+docker compose build
 docker compose up -d
 ```
 
+NOTICE: If the deployment doesn't update, we may need to delete the image and build again.
 ---
 
 ## 🔍 Monitoring and Managing the App
