@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Security
 from typing import List, Dict, Any
 
-from ..utils.db import get_finance_transactions
+from ..utils.db import get_finance_transactions, add_transaction
 from ..utils.auth import validate_api_key
+from .models.stock_models import AddTransactionRequest
 
 
 router = APIRouter()
@@ -43,5 +44,13 @@ def get_transactions(api_key=Security(validate_api_key)) -> List[Dict[str, Any]]
     return df.to_dict(orient="records")
 
 
-# @app.post("/transactions", summary="Add transaction record", tags=["Holdings"])
-# def add_transactions(data: StockRequest, api_key=Security(validate_api_key)):
+@router.post("/add", summary="Add transaction record", tags=["Holdings"])
+def add_transactions(data: AddTransactionRequest, api_key=Security(validate_api_key)):
+    success, item = add_transaction(
+        data.symbol, num_of_shares=data.shares,
+        amount=data.amount, operation=data.operation,
+        currency=data.currency)
+    content = {'success': success}
+    if success:
+        content['item'] = item
+    return content

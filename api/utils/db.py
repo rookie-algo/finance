@@ -30,12 +30,12 @@ def add_transaction(
     # Validate operation
     if operation not in ('BUY', 'SELL'):
         logger.warning("Invalid operation: %s", operation)
-        return False
+        return False, None
 
     # Validate currency
     if currency not in ('USD', 'EUR'):
         logger.warning("Invalid currency: %s", currency)
-        return False
+        return False, None
 
     try:
         # Initialize DynamoDB (credentials loaded from environment or ~/.aws/credentials)
@@ -63,11 +63,11 @@ def add_transaction(
         table.put_item(Item=item)
         # logger.info(item)
         logger.info("Transaction added: %s", item_id)
-        return True
+        return True, item
 
     except Exception as e:
         logger.error("Failed to add transaction: %s", str(e))
-        return False
+        return False, None
 
 
 def get_finance_transactions(symbol: Optional[str] = None) -> List[Dict]:
