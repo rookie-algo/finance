@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Security
+import pandas as pd
 from typing import List, Dict, Any
 
 from ..utils.db import get_finance_transactions, add_transaction
@@ -11,24 +12,33 @@ router = APIRouter()
 
 # === 获取持仓 ===
 @router.get("/holdings", summary="Get current holdings", tags=["Holdings"])
-def get_holdings(api_key=Security(validate_api_key)) -> List[Dict[str, int]]:
+def get_holdings(api_key=Security(validate_api_key)) -> Dict:
     """Aggregates current holdings per symbol based on transactions."""
     transactions_df = get_finance_transactions()
     results = []
 
     for symbol, tx_group in transactions_df.groupby("Symbol"):
         total_shares = 0
+        invested = 0
+        currency = tx_group["Currency"].iloc[0]
+        print()
         for operation, ops_df in tx_group.groupby("Operation"):
             shares = ops_df["Num_of_Shares"].sum()
+            money = ops_df["Amount"].sum()
             if operation == "BUY":
                 total_shares += shares
+                invested += money
             else:
                 total_shares -= shares
+                invested -= money
 
         if total_shares > 0:
-            results.append({symbol: int(total_shares)})
-
-    return results
+            results.append({"symbol": symbol, "total_shares": int(total_shares), "invested": float(invested), "currency": str(currency)})
+    result_df = pd.DataFrame(results)
+    holdings = {}
+    for currency, holding in result_df.groupby("currency"):
+        holdings[currency] = holding[["symbol", "total_shares", "invested"]].to_dict(orient="records")
+    return holdings
 
 
 # === 获取购买记录 ===
