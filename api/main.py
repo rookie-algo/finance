@@ -15,8 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(transactions.router, prefix="/transactions", tags=["transactions"])
-app.include_router(stock.router, prefix="/stock", tags=["stocks"])
+app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
+app.include_router(stock.router, prefix="/api/stock", tags=["stocks"])
 
 @app.get("/", summary="Health Check")
 def read_root() -> Dict[str, str]:
